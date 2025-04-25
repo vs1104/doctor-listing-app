@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doctor Listing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #e0f7fa 0%, #f0f4ff 100%);
+      margin: 0;
+      min-height: 100vh;
+    }
+    .spinner {
+      border: 4px solid #e0f7fa;
+      border-top: 4px solid #3b82f6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .autocomplete-suggestions {
+      position: absolute;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.375rem;
+      max-height: 200px;
+      overflow-y: auto;
+      width: 100%;
+      z-index: 10;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .suggestion-item {
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .suggestion-item:hover {
+      background: linear-gradient(90deg, #e0f7fa, #b2ebf2);
+      color: #1e40af;
+    }
+    .filter-card {
+      transition: transform 0.2s ease-in-out;
+      background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    .filter-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+    }
+    .doctor-card {
+      transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+      width: 100%;
+      max-width: 300px;
+      min-height: 250px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem;
+      background: linear-gradient(135deg, #ffffff 0%, #eef2f7 100%);
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      margin: 0 auto;
+    }
+    .doctor-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+    .doctor-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.5rem;
+      justify-items: center;
+      padding: 1rem 0;
+    }
+    .search-bar-container {
+      background: linear-gradient(90deg, #4fc3f7, #42a5f5);
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    #search-bar {
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+    }
+    #search-bar:focus {
+      background: white;
+      box-shadow: 0 0 0 2px #bbdefb;
+    }
+    button {
+      transition: all 0.3s ease;
+    }
+    .book-button {
+      background: linear-gradient(90deg, #4dd0e1, #26c6da);
+      color: white;
+    }
+    .book-button:hover {
+      background: linear-gradient(90deg, #26c6da, #00acc1);
+      color: white;
+    }
+    .view-profile {
+      background: linear-gradient(90deg, #e0e0e0, #bdbdbd);
+      color: #1e1e1e;
+    }
+    .view-profile:hover {
+      background: linear-gradient(90deg, #bdbdbd, #9e9e9e);
+      color: #1e1e1e;
+    }
+    h4 {
+      color: #1e40af;
+      font-weight: 600;
+    }
+    @media (max-width: 767px) {
+      .doctor-list {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (min-width: 768px) and (max-width: 1023px) {
+      .doctor-list {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <!-- Main Listing Page -->
+  <div id="listing-page" class="listing-page">
+    <div class="search-bar-container bg-white shadow-md p-4 mx-4 lg:mx-8 mt-6 rounded-lg">
+      <div class="autocomplete-container relative">
+        <input type="text" id="search-bar" data-testid="autocomplete-input" placeholder="Search Symptoms, Doctors, Specialists, Clinics" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <div id="suggestions" class="autocomplete-suggestions hidden"></div>
+      </div>
+    </div>
+    <div class="main-content flex flex-col lg:flex-row mt-6 mx-4 lg:mx-8">
+      <div class="filter-panel w-full lg:w-1/4 lg:pr-6 mb-6 lg:mb-0">
+        <div class="filter-card bg-white rounded-lg shadow-lg p-4 mb-4">
+          <div class="filter-section mb-4">
+            <h4 data-testid="filter-header-sort" class="text-lg font-semibold text-gray-700 mb-2">Sort By</h4>
+            <label class="block text-sm text-gray-600 mb-1"><input type="radio" name="sort" value="fees" data-testid="sort-fees" class="mr-2"> Price: Low-High</label>
+            <label class="block text-sm text-gray-600"><input type="radio" name="sort" value="experience" data-testid="sort-experience" checked class="mr-2"> Experience: High-Low</label>
+          </div>
+          <div class="clear-all text-blue-600 text-sm cursor-pointer hover:underline" onclick="clearSort()">Clear All</div>
+        </div>
+        <div class="filter-card bg-white rounded-lg shadow-lg p-4">
+          <div class="filter-section specialty-search mb-4">
+            <input type="text" id="specialty-search" placeholder="Search Specialities" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="filter-section mb-4">
+            <h4 data-testid="filter-header-speciality" class="text-lg font-semibold text-gray-700 mb-2">Specialities</h4>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="General Physician" data-testid="filter-specialty-General-Physician" class="mr-2"> General Physician</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Dentist" data-testid="filter-specialty-Dentist" class="mr-2"> Dentist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Dermatologist" data-testid="filter-specialty-Dermatologist" class="mr-2"> Dermatologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Paediatrician" data-testid="filter-specialty-Paediatrician" class="mr-2"> Paediatrician</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Gynaecologist and Obstetrician" data-testid="filter-specialty-Gynaecologist" class="mr-2"> Gynaecologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="ENT" data-testid="filter-specialty-ENT" class="mr-2"> ENT</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Diabetologist" data-testid="filter-specialty-Diabetologist" class="mr-2"> Diabetologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Cardiologist" data-testid="filter-specialty-Cardiologist" class="mr-2"> Cardiologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Physiotherapist" data-testid="filter-specialty-Physiotherapist" class="mr-2"> Physiotherapist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Endocrinologist" data-testid="filter-specialty-Endocrinologist" class="mr-2"> Endocrinologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Orthopaedic" data-testid="filter-specialty-Orthopaedic" class="mr-2"> Orthopaedic</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Ophthalmologist" data-testid="filter-specialty-Ophthalmologist" class="mr-2"> Ophthalmologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Gastroenterologist" data-testid="filter-specialty-Gastroenterologist" class="mr-2"> Gastroenterologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Pulmonologist" data-testid="filter-specialty-Pulmonologist" class="mr-2"> Pulmonologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Psychiatrist" data-testid="filter-specialty-Psychiatrist" class="mr-2"> Psychiatrist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Urologist" data-testid="filter-specialty-Urologist" class="mr-2"> Urologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Dietitian/Nutritionist" data-testid="filter-specialty-Dietitian-Nutritionist" class="mr-2"> Dietitian/Nutritionist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Psychologist" data-testid="filter-specialty-Psychologist" class="mr-2"> Psychologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Sexologist" data-testid="filter-specialty-Sexologist" class="mr-2"> Sexologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Nephrologist" data-testid="filter-specialty-Nephrologist" class="mr-2"> Nephrologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Neurologist" data-testid="filter-specialty-Neurologist" class="mr-2"> Neurologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Oncologist" data-testid="filter-specialty-Oncologist" class="mr-2"> Oncologist</label>
+            <label class="block text-sm text-gray-600 mb-1"><input type="checkbox" value="Ayurveda" data-testid="filter-specialty-Ayurveda" class="mr-2"> Ayurveda</label>
+            <label class="block text-sm text-gray-600"><input type="checkbox" value="Homeopath" data-testid="filter-specialty-Homeopath" class="mr-2"> Homeopath</label>
+          </div>
+          <div class="filter-section mb-4">
+            <h4 data-testid="filter-header-moc" class="text-lg font-semibold text-gray-700 mb-2">Mode of Consultation</h4>
+            <label class="block text-sm text-gray-600 mb-1"><input type="radio" name="consultation" value="video" data-testid="filter-video-consult" class="mr-2"> Video Consult</label>
+            <label class="block text-sm text-gray-600"><input type="radio" name="consultation" value="in-clinic" data-testid="filter-in-clinic" checked class="mr-2"> In Clinic</label>
+          </div>
+          <div class="clear-all text-blue-600 text-sm cursor-pointer hover:underline" onclick="clearFilters()">Clear All</div>
+        </div>
+      </div>
+      <div id="doctor-list" class="doctor-list w-full lg:w-3/4 grid gap-6"></div>
+    </div>
+  </div>
+
+  <!-- Doctor Profile Page -->
+  <div id="profile-page" class="profile-page hidden">
+    <div class="bg-white shadow-lg p-6 mx-4 lg:mx-8 mt-6 rounded-xl" style="background: linear-gradient(135deg, #ffffff 0%, #e6f3ff 100%);">
+      <button id="back-button" class="mb-4 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors duration-200">Back to Listing</button>
+      <div class="flex flex-col lg:flex-row items-center lg:items-start">
+        <img id="profile-image" src="" alt="Doctor" class="w-32 h-32 rounded-full object-cover mb-4 lg:mb-0 lg:mr-6 border-4 border-teal-400">
+        <div class="flex-1">
+          <h2 id="profile-name" class="text-2xl font-bold text-indigo-800 mb-2"></h2>
+          <p id="profile-specialty" class="text-lg text-gray-700 mb-2"></p>
+          <p id="profile-experience" class="text-md text-gray-600 mb-2"></p>
+          <p id="profile-clinic" class="text-md text-gray-600 mb-2"></p>
+          <p id="profile-location" class="text-md text-gray-600 mb-4"></p>
+          <div class="flex items-center space-x-4">
+            <p id="profile-fee" class="text-lg font-medium text-indigo-800"></p>
+            <button id="book-appointment" class="px-4 py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors duration-200">Book Appointment</button>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-gray-50 p-4 rounded-lg shadow-sm" style="background: linear-gradient(135deg, #f9fafb 0%, #e0e7ff 100%);">
+          <h3 class="text-lg font-semibold text-indigo-700 mb-2">Consultation Details</h3>
+          <p id="profile-consultation" class="text-md text-gray-700"></p>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg shadow-sm" style="background: linear-gradient(135deg, #f9fafb 0%, #e0e7ff 100%);">
+          <h3 class="text-lg font-semibold text-indigo-700 mb-2">Additional Information</h3>
+          <p id="profile-additional" class="text-md text-gray-700">More details can be added here as available.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let doctors = [];
+    const searchBar = document.getElementById('search-bar');
+    const suggestions = document.getElementById('suggestions');
+    const doctorList = document.getElementById('doctor-list');
+    const specialtySearch = document.getElementById('specialty-search');
+    const specialtyCheckboxes = document.querySelectorAll('input[type="checkbox"][data-testid^="filter-specialty-"]');
+    const listingPage = document.getElementById('listing-page');
+    const profilePage = document.getElementById('profile-page');
+    const backButton = document.getElementById('back-button');
+
+    doctorList.innerHTML = '<div class="spinner"></div>';
+
+    axios.get('https://srijandubey.github.io/campus-api-mock/SRM-C1-25.json')
+      .then(response => {
+        doctors = response.data.map(doc => {
+          const specialty = Array.isArray(doc.specialities)
+            ? doc.specialities.map(spec => spec.name || 'N/A')
+            : ['N/A'];
+          const experience = parseInt(doc.experience) || 0;
+          const fee = parseInt(doc.fees.replace('₹ ', '')) || 0;
+          const consultationType = doc.in_clinic ? 'in-clinic' : (doc.video_consult ? 'video' : 'N/A');
+          return {
+            name: doc.name || 'N/A',
+            specialty: specialty,
+            experience: experience,
+            fee: fee,
+            clinic: doc.clinic?.name || 'N/A',
+            location: doc.clinic?.address?.locality || 'N/A',
+            consultation_type: consultationType,
+            image: doc.photo || 'https://via.placeholder.com/50'
+          };
+        });
+        applyFiltersFromURL();
+        renderDoctors();
+      })
+      .catch(error => console.error('Error fetching data:', error));
+
+    searchBar.addEventListener('input', () => {
+      const query = searchBar.value.toLowerCase();
+      suggestions.innerHTML = '';
+      if (query) {
+        const matches = doctors.filter(doc => doc.name.toLowerCase().includes(query)).slice(0, 3);
+        if (matches.length > 0) {
+          suggestions.classList.remove('hidden');
+          matches.forEach(doc => {
+            const div = document.createElement('div');
+            div.textContent = doc.name;
+            div.className = 'suggestion-item';
+            div.dataset.testid = 'suggestion-item';
+            div.addEventListener('click', () => {
+              searchBar.value = doc.name;
+              suggestions.classList.add('hidden');
+              renderDoctors();
+            });
+            suggestions.appendChild(div);
+          });
+        } else {
+          suggestions.classList.add('hidden');
+        }
+      } else {
+        suggestions.classList.add('hidden');
+      }
+    });
+
+    searchBar.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        suggestions.classList.add('hidden');
+        renderDoctors();
+      }
+    });
+
+    specialtySearch.addEventListener('input', () => {
+      const query = specialtySearch.value.toLowerCase();
+      specialtyCheckboxes.forEach(checkbox => {
+        const label = checkbox.parentElement.textContent.toLowerCase();
+        checkbox.parentElement.style.display = query ? (label.includes(query) ? 'block' : 'none') : 'block';
+      });
+    });
+
+    document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(input => {
+      input.addEventListener('change', () => {
+        updateURL();
+        renderDoctors();
+      });
+    });
+
+    function clearSort() {
+      document.querySelectorAll('input[name="sort"]').forEach(input => (input.checked = false));
+      updateURL();
+      renderDoctors();
+    }
+
+    function clearFilters() {
+      document.querySelectorAll('input[type="checkbox"]').forEach(input => (input.checked = false));
+      document.querySelectorAll('input[name="consultation"]').forEach(input => (input.checked = false));
+      specialtySearch.value = '';
+      specialtyCheckboxes.forEach(checkbox => checkbox.parentElement.style.display = 'block');
+      updateURL();
+      renderDoctors();
+    }
+
+    function updateURL() {
+      const consultation = document.querySelector('input[name="consultation"]:checked')?.value;
+      const specialties = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+      const sort = document.querySelector('input[name="sort"]:checked')?.value;
+      const params = new URLSearchParams();
+      if (consultation) params.append('consultation', consultation);
+      if (specialties.length) params.append('specialties', specialties.join(','));
+      if (sort) params.append('sort', sort);
+      window.history.pushState({}, '', '?' + params.toString());
+    }
+
+    function applyFiltersFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const consultation = params.get('consultation');
+      const specialties = params.get('specialties')?.split(',') || [];
+      const sort = params.get('sort');
+
+      if (consultation) document.querySelector(`input[value="${consultation}"][name="consultation"]`).checked = true;
+      specialties.forEach(spec => {
+        const checkbox = document.querySelector(`input[value="${spec}"][type="checkbox"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+      if (sort) document.querySelector(`input[value="${sort}"][name="sort"]`).checked = true;
+    }
+
+    function filterDoctors() {
+      let filtered = [...doctors];
+      const consultation = document.querySelector('input[name="consultation"]:checked')?.value;
+      const specialties = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+      const searchQuery = searchBar.value.toLowerCase();
+
+      if (consultation) {
+        filtered = filtered.filter(doc => doc.consultation_type.toLowerCase() === consultation.toLowerCase());
+      }
+      if (specialties.length) {
+        filtered = filtered.filter(doc => doc.specialty.some(spec => specialties.includes(spec)));
+      }
+      if (searchQuery) {
+        filtered = filtered.filter(doc => doc.name.toLowerCase().includes(searchQuery));
+      }
+      const sort = document.querySelector('input[name="sort"]:checked')?.value;
+      if (sort === 'fees') {
+        filtered.sort((a, b) => a.fee - b.fee);
+      } else if (sort === 'experience') {
+        filtered.sort((a, b) => b.experience - a.experience);
+      }
+      return filtered;
+    }
+
+    function showProfile(doctor) {
+      listingPage.classList.add('hidden');
+      profilePage.classList.remove('hidden');
+
+      document.getElementById('profile-image').src = doctor.image;
+      document.getElementById('profile-name').textContent = doctor.name;
+      document.getElementById('profile-specialty').textContent = doctor.specialty.join(', ');
+      document.getElementById('profile-experience').textContent = `${doctor.experience} years of experience`;
+      document.getElementById('profile-clinic').textContent = `Clinic: ${doctor.clinic}`;
+      document.getElementById('profile-location').textContent = `Location: ${doctor.location}`;
+      document.getElementById('profile-fee').textContent = `Consultation Fee: ₹ ${doctor.fee}`;
+      document.getElementById('profile-consultation').textContent = `Mode of Consultation: ${doctor.consultation_type === 'in-clinic' ? 'In Clinic' : 'Video Consult'}`;
+    }
+
+    backButton.addEventListener('click', () => {
+      profilePage.classList.add('hidden');
+      listingPage.classList.remove('hidden');
+    });
+
+    function renderDoctors() {
+      const filteredDoctors = filterDoctors();
+      doctorList.innerHTML = '';
+      if (filteredDoctors.length === 0) {
+        doctorList.innerHTML = '<p class="text-center text-gray-500">No doctors found.</p>';
+        return;
+      }
+      doctorList.className = 'doctor-list w-full lg:w-3/4 grid gap-6';
+      filteredDoctors.forEach(doc => {
+        const card = document.createElement('div');
+        card.className = 'doctor-card bg-white rounded-lg p-4 shadow-md hover:shadow-lg transition-all duration-200';
+        card.dataset.testid = 'doctor-card';
+        card.innerHTML = `
+          <img src="${doc.image}" alt="Doctor" class="w-12 h-12 rounded-full object-cover mb-3 border-2 border-teal-400">
+          <div class="doctor-details flex-1 text-center">
+            <h4 data-testid="doctor-name" class="text-lg font-semibold text-indigo-800 mb-1">${doc.name}</h4>
+            <p data-testid="doctor-specialty" class="text-sm text-gray-700 mb-1">${doc.specialty.join(', ')}</p>
+            <p data-testid="doctor-experience" class="text-sm text-gray-600 mb-1">${doc.experience} yrs exp.</p>
+            <p class="text-sm text-gray-600 mb-2">${doc.clinic}, ${doc.location}</p>
+            <p data-testid="doctor-fee" class="text-lg font-medium text-indigo-800 mb-3">₹ ${doc.fee}</p>
+          </div>
+          <div class="flex flex-col items-center w-full space-y-2">
+            <button class="book-button w-full px-4 py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition-colors duration-200">Book Appointment</button>
+            <button class="view-profile w-full px-4 py-2 border border-gray-400 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors duration-200">View Profile</button>
+          </div>
+        `;
+        card.querySelector('.view-profile').addEventListener('click', () => showProfile(doc));
+        doctorList.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>
